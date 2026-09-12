@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Salesman Performance Dashboard</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#12151b">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    color-scheme: dark;
+    --bg:#12151b;
+    --bg-soft:#171b22;
+    --panel:#1c212a;
+    --panel-2:#20262f;
+    --border:#2a313c;
+    --text:#eceff2;
+    --text-dim:#8e97a3;
+    --text-faint:#5c636f;
+    --accent:#cf8a3f;      /* ginger amber */
+    --accent-soft:#3a2c1c;
+    --teal:#2f9e8f;
+    --teal-soft:#122824;
+    --red:#d5695f;
+    --red-soft:#2c1a19;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;
+    font-size:14px;
+    line-height:1.5;
+  }
+  h1,h2,h3,.num{font-family:'Sora',system-ui,sans-serif;}
+  ::selection{background:var(--accent);color:#12151b;}
+
+  /* ---------- layout ---------- */
+  .wrap{max-width:1320px;margin:0 auto;padding:24px 28px 60px;}
+  header{
+    display:flex;align-items:flex-start;justify-content:space-between;
+    gap:24px;margin-bottom:22px;flex-wrap:wrap;
+  }
+  .title-block h1{font-size:22px;font-weight:700;margin:0 0 4px;letter-spacing:-0.01em;}
+  .title-block p{margin:0;color:var(--text-dim);font-size:13px;}
+  .accent-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-right:8px;vertical-align:middle;}
+
+  .file-controls{display:flex;align-items:center;gap:10px;}
+  .btn{
+    appearance:none;border:1px solid var(--border);background:var(--panel);
+    color:var(--text);padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;
+    cursor:pointer;font-family:inherit;transition:border-color .15s, background .15s;
+  }
+  .btn:hover{border-color:var(--accent);}
+  .btn-primary{background:var(--accent);border-color:var(--accent);color:#171008;}
+  .btn-primary:hover{background:#dc9750;border-color:#dc9750;}
+  .btn-ghost{background:transparent;}
+  .btn-sm{padding:6px 11px;font-size:12px;}
+  input[type=file]{display:none;}
+  .file-status{font-size:12px;color:var(--text-dim);}
+  .file-status b{color:var(--text);}
+
+  /* ---------- empty state ---------- */
+  #emptyState{
+    border:1.5px dashed var(--border);border-radius:14px;
+    padding:80px 30px;text-align:center;margin-top:40px;background:var(--bg-soft);
+  }
+  #emptyState.drag{border-color:var(--accent);background:var(--accent-soft);}
+  #emptyState h2{font-size:19px;margin:0 0 8px;}
+  #emptyState p{color:var(--text-dim);max-width:440px;margin:0 auto 22px;font-size:13px;}
+
+  /* ---------- filter bar ---------- */
+  #dash{display:none;}
+  .filterbar{
+    display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;
+    background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+    padding:14px 16px;margin-bottom:18px;
+  }
+  .filter-field{display:flex;flex-direction:column;gap:5px;min-width:150px;}
+  .filter-field label{font-size:11px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+  .msel{position:relative;}
+  .msel-btn{
+    width:100%;text-align:left;background:var(--panel-2);border:1px solid var(--border);
+    color:var(--text);padding:8px 10px;border-radius:7px;font-size:13px;cursor:pointer;
+    display:flex;justify-content:space-between;align-items:center;gap:8px;font-family:inherit;
+  }
+  .msel-btn:hover{border-color:var(--accent);}
+  .msel-btn .chev{color:var(--text-faint);font-size:10px;}
+  .msel-panel{
+    display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:40;
+    background:var(--panel-2);border:1px solid var(--border);border-radius:8px;
+    width:240px;max-height:280px;overflow-y:auto;box-shadow:0 12px 28px rgba(0,0,0,.45);
+    padding:8px;
+  }
+  .msel-panel.open{display:block;}
+  .msel-search{
+    width:100%;background:var(--bg-soft);border:1px solid var(--border);color:var(--text);
+    padding:6px 8px;border-radius:6px;font-size:12px;margin-bottom:6px;font-family:inherit;
+  }
+  .msel-actions{display:flex;gap:6px;margin-bottom:6px;}
+  .msel-actions a{font-size:11px;color:var(--teal);cursor:pointer;text-decoration:none;}
+  .msel-opt{display:flex;align-items:center;gap:7px;padding:5px 4px;border-radius:5px;font-size:12.5px;cursor:pointer;}
+  .msel-opt:hover{background:var(--bg-soft);}
+  .msel-opt input{accent-color:var(--accent);}
+  .date-field input{
+    background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    padding:7px 9px;border-radius:7px;font-size:13px;font-family:inherit;
+    width:132px;cursor:pointer;
+  }
+  .gran-toggle{display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden;}
+  .gran-toggle button{
+    background:var(--panel-2);color:var(--text-dim);border:none;padding:8px 14px;font-size:12.5px;
+    font-weight:600;cursor:pointer;font-family:inherit;border-right:1px solid var(--border);
+  }
+  .gran-toggle button:last-child{border-right:none;}
+  .gran-toggle button.active{background:var(--accent);color:#171008;}
+  .filterbar .spacer{flex:1;}
+
+  /* ---------- kpis ---------- */
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px;}
+  .kpi{
+    background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+    padding:16px 18px;
+  }
+  .kpi .label{font-size:11.5px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+  .kpi .num{font-size:26px;font-weight:700;letter-spacing:-0.01em;}
+  .kpi .sub{font-size:12px;color:var(--text-faint);margin-top:4px;}
+  .kpi.a1{border-left:3px solid var(--accent);}
+  .kpi.a2{border-left:3px solid var(--teal);}
+  .kpi.a3{border-left:3px solid #6e8fd6;}
+  .kpi.a4{border-left:3px solid #b088d6;}
+
+  /* ---------- charts ---------- */
+  .chart-row{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;margin-bottom:18px;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;}
+  .panel h3{font-size:13.5px;font-weight:600;margin:0 0 14px;color:var(--text);}
+  .panel h3 span{color:var(--text-faint);font-weight:400;font-family:'Inter';font-size:12px;}
+  .chart-box{position:relative;height:260px;}
+
+  /* ---------- table ---------- */
+  .table-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;}
+  .table-head-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap;}
+  .search-box{
+    background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    padding:8px 12px;border-radius:7px;font-size:13px;width:220px;font-family:inherit;
+  }
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{
+    text-align:left;color:var(--text-dim);font-weight:600;font-size:11px;text-transform:uppercase;
+    letter-spacing:.03em;padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;
+    user-select:none;white-space:nowrap;
+  }
+  thead th:hover{color:var(--accent);}
+  thead th.num-col, td.num-col{text-align:right;}
+  thead th .arrow{opacity:.5;font-size:9px;margin-left:3px;}
+  tbody td{padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  tbody tr:hover{background:var(--bg-soft);}
+  tbody tr:last-child td{border-bottom:none;}
+  td.rank{color:var(--text-faint);font-variant-numeric:tabular-nums;width:34px;}
+  td.sname{font-weight:600;}
+  td.meta{color:var(--text-dim);font-size:12px;}
+  .empty-row td{text-align:center;color:var(--text-dim);padding:30px;}
+  footer{margin-top:28px;color:var(--text-faint);font-size:11.5px;text-align:center;}
+
+  @media(max-width:980px){
+    .kpi-row{grid-template-columns:repeat(2,1fr);}
+    .chart-row{grid-template-columns:1fr;}
+  }
+
+  /* ---------- auth overlay ---------- */
+  .auth-overlay{
+    position:fixed;inset:0;background:rgba(10,12,16,.92);display:none;
+    align-items:center;justify-content:center;z-index:100;
+  }
+  .auth-box{
+    background:var(--panel);border:1px solid var(--border);border-radius:14px;
+    padding:32px;width:280px;display:flex;flex-direction:column;gap:12px;
+  }
+  .auth-box h2{margin:0;font-size:18px;}
+  .auth-box p{margin:0 0 4px;color:var(--text-dim);font-size:12.5px;}
+  .auth-box input{
+    background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    padding:9px 10px;border-radius:7px;font-size:13px;font-family:inherit;
+  }
+  .auth-error{color:var(--red);font-size:12px;min-height:14px;}
+</style>
+</head>
+<body>
+
+<div class="auth-overlay" id="authOverlay">
+  <form class="auth-box" id="authForm">
+    <h2>Sign in</h2>
+    <p>Use the shared team login to access the dashboard.</p>
+    <input type="email" id="authEmail" placeholder="Email" autocomplete="username" required>
+    <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password" required>
+    <button type="submit" class="btn btn-primary">Sign in</button>
+    <div class="auth-error" id="authError"></div>
+  </form>
+</div>
+
+<div class="wrap">
+
+  <header>
+    <div class="title-block">
+      <h1><span class="accent-dot"></span>Salesman Performance — Nasional</h1>
+      <p>Sales quantity &amp; active outlet performance by salesman, filterable by sub-brand, ABS, and distributor</p>
+    </div>
+    <div class="file-controls">
+      <span class="file-status" id="fileStatus"></span>
+      <button class="btn btn-ghost btn-sm" id="refreshDbBtn" style="display:none;">Refresh</button>
+      <button class="btn btn-ghost btn-sm" id="signOutBtn" style="display:none;">Sign out</button>
+      <label class="btn btn-primary" for="fileInput" id="uploadLabel">Upload Excel</label>
+      <input type="file" id="fileInput" accept=".xlsx,.xls">
+    </div>
+  </header>
+
+  <div id="emptyState">
+    <h2>Upload your sales data to begin</h2>
+    <p>Drop in the monthly / weekly transaction Excel file (same columns as the national export). Re-upload any time — the dashboard rebuilds from the new file with nothing to reconfigure.</p>
+    <label class="btn btn-primary" for="fileInput">Choose Excel File</label>
+  </div>
+
+  <div id="dash">
+
+    <div class="filterbar">
+      <div class="filter-field">
+        <label>Period</label>
+        <div class="date-field" style="display:flex;gap:6px;">
+          <input type="date" id="dateStart">
+          <input type="date" id="dateEnd">
+        </div>
+      </div>
+
+      <div class="filter-field">
+        <label>Sub Brand</label>
+        <div class="msel" id="msel-subbrand"></div>
+      </div>
+
+      <div class="filter-field">
+        <label>ABS</label>
+        <div class="msel" id="msel-abs"></div>
+      </div>
+
+      <div class="filter-field">
+        <label>Sub Area</label>
+        <div class="msel" id="msel-subarea"></div>
+      </div>
+
+      <div class="filter-field">
+        <label>Distributor</label>
+        <div class="msel" id="msel-distributor"></div>
+      </div>
+
+      <div class="filter-field">
+        <label>Trend Granularity</label>
+        <div class="gran-toggle" id="granToggle">
+          <button data-g="daily">Daily</button>
+          <button data-g="weekly" class="active">Weekly</button>
+          <button data-g="monthly">Monthly</button>
+        </div>
+      </div>
+
+      <div class="spacer"></div>
+      <button class="btn btn-ghost btn-sm" id="resetBtn">Reset filters</button>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi a1">
+        <div class="label">Total Quantity</div>
+        <div class="num" id="kpiQty">—</div>
+        <div class="sub" id="kpiQtySub"></div>
+      </div>
+      <div class="kpi a2">
+        <div class="label">Total Sales Value</div>
+        <div class="num" id="kpiSales">—</div>
+        <div class="sub" id="kpiSalesSub"></div>
+      </div>
+      <div class="kpi a3">
+        <div class="label">Active Outlets</div>
+        <div class="num" id="kpiOutlets">—</div>
+        <div class="sub" id="kpiOutletsSub"></div>
+      </div>
+      <div class="kpi a4">
+        <div class="label">Active Salesmen</div>
+        <div class="num" id="kpiSalesmen">—</div>
+        <div class="sub" id="kpiSalesmenSub"></div>
+      </div>
+    </div>
+
+    <div class="chart-row">
+      <div class="panel">
+        <h3 id="trendTitle">Sales Trend <span>— weekly</span></h3>
+        <div class="chart-box"><canvas id="trendChart"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3>Top 10 Salesmen <span>by quantity</span></h3>
+        <div class="chart-box"><canvas id="topChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="table-panel">
+      <div class="table-head-row">
+        <h3 style="margin:0;">Salesman Performance</h3>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <input type="text" class="search-box" id="searchBox" placeholder="Search salesman...">
+          <button class="btn btn-sm" id="exportBtn">Export CSV</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:34px;"></th>
+              <th data-key="salesman">Salesman<span class="arrow"></span></th>
+              <th data-key="abs">ABS<span class="arrow"></span></th>
+              <th data-key="distributor">Distributor<span class="arrow"></span></th>
+              <th data-key="subArea">Sub Area<span class="arrow"></span></th>
+              <th data-key="qty" class="num-col">Quantity<span class="arrow"></span></th>
+              <th data-key="sales" class="num-col">Sales Value<span class="arrow"></span></th>
+              <th data-key="outlets" class="num-col">Active Outlets<span class="arrow"></span></th>
+              <th data-key="avgPerOutlet" class="num-col">Avg / Outlet<span class="arrow"></span></th>
+            </tr>
+          </thead>
+          <tbody id="tblBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer>Active outlet = distinct customer with at least one positive-quantity transaction in the selected period. Data reflects the currently uploaded file only — re-upload to refresh.</footer>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------------- state ----------------
+  let RAW = [];              // parsed rows
+  let filters = {
+    subBrand: new Set(), abs: new Set(), subArea: new Set(), distributor: new Set(),
+    dateStart: null, dateEnd: null, granularity: 'weekly'
+  };
+  let sortState = { key: 'sales', dir: 'desc' };
+  let searchTerm = '';
+  let trendChart = null, topChart = null;
+  let optionLists = { subBrand: [], abs: [], subArea: [], distributor: [] };
+
+  const fmtInt = new Intl.NumberFormat('en-US');
+  const fmtIDR = (v) => 'Rp ' + new Intl.NumberFormat('en-US', {maximumFractionDigits:0}).format(Math.round(v));
+
+  // ---------------- supabase ----------------
+  // Fill these in from Supabase → Project Settings → API. The anon/public key
+  // is safe to embed here — access is enforced server-side by Row Level Security.
+  const SUPABASE_URL = 'https://sfwfretnnhcunbpsntda.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_6v5nqhOolvTM-6Dc3_t7Rw_1f2DCM8t';
+  const sb = (typeof supabase !== 'undefined' && /^https?:\/\//.test(SUPABASE_URL))
+    ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
+
+  const authOverlay = document.getElementById('authOverlay');
+  const authForm = document.getElementById('authForm');
+  const authError = document.getElementById('authError');
+  const refreshDbBtn = document.getElementById('refreshDbBtn');
+  const signOutBtn = document.getElementById('signOutBtn');
+
+  if(sb){
+    refreshDbBtn.style.display = '';
+    signOutBtn.style.display = '';
+
+    refreshDbBtn.addEventListener('click', ()=>{
+      loadFromSupabase().catch(err => fileStatus.textContent = 'Refresh failed: ' + err.message);
+    });
+    signOutBtn.addEventListener('click', ()=> sb.auth.signOut());
+
+    authForm.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      authError.textContent = '';
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value;
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if(error) authError.textContent = error.message;
+    });
+
+    sb.auth.onAuthStateChange((event, session)=>{
+      if(session){
+        authOverlay.style.display = 'none';
+        loadFromSupabase().catch(err => fileStatus.textContent = 'Load failed: ' + err.message);
+      } else {
+        authOverlay.style.display = 'flex';
+        dash.style.display = 'none';
+        emptyState.style.display = 'none';
+      }
+    });
+  }
+
+  function mergeByNaturalKey(cleaned){
+    const map = new Map();
+    for(const r of cleaned){
+      const key = toISODate(r.date) + '|' + r.salesman + '|' + r.distributor + '|' + r.subBrand + '|' + r.customer_no;
+      if(!map.has(key)){
+        map.set(key, { ...r });
+      } else {
+        const e = map.get(key);
+        e.quantity += r.quantity;
+        e.sales += r.sales;
+      }
+    }
+    return [...map.values()];
+  }
+
+  async function syncToSupabase(cleaned){
+    const merged = mergeByNaturalKey(cleaned);
+    const BATCH = 500;
+    for(let i=0; i<merged.length; i+=BATCH){
+      const batch = merged.slice(i, i+BATCH).map(r => ({
+        date: toISODate(r.date), week: r.week, month: r.month, year: r.year,
+        salesman: r.salesman, distributor: r.distributor, sub_area: r.subArea,
+        sub_brand: r.subBrand, abs: r.abs, customer_no: r.customer_no,
+        quantity: r.quantity, sales_amount: r.sales
+      }));
+      const { error } = await sb.from('sales_transactions')
+        .upsert(batch, { onConflict: 'date,salesman,distributor,sub_brand,customer_no' });
+      if(error) throw error;
+    }
+  }
+
+  async function loadFromSupabase(label){
+    fileStatus.textContent = 'Loading data from database…';
+    const PAGE = 1000;
+    let from = 0, all = [];
+    while(true){
+      const { data, error } = await sb.from('sales_transactions').select('*').range(from, from + PAGE - 1);
+      if(error) throw error;
+      all = all.concat(data);
+      if(data.length < PAGE) break;
+      from += PAGE;
+    }
+    const cleaned = all.map(r => ({
+      distributor: r.distributor || 'Unknown', subArea: r.sub_area || 'Unknown',
+      salesman: r.salesman || 'Unknown', abs: r.abs || 'Unknown', subBrand: r.sub_brand || 'Unknown',
+      customer_no: r.customer_no || '', quantity: Number(r.quantity) || 0, sales: Number(r.sales_amount) || 0,
+      date: new Date(r.date), week: r.week || '', month: r.month || '',
+      year: r.year || new Date(r.date).getFullYear()
+    }));
+    applyData(cleaned, cleaned.length
+      ? (label || 'Loaded <b>' + fmtInt.format(cleaned.length) + '</b> rows from database')
+      : 'No data in database yet — upload a file to get started.');
+  }
+
+  // ---------------- file handling ----------------
+  const fileInput = document.getElementById('fileInput');
+  const emptyState = document.getElementById('emptyState');
+  const dash = document.getElementById('dash');
+  const fileStatus = document.getElementById('fileStatus');
+
+  fileInput.addEventListener('change', (e) => {
+    if(e.target.files && e.target.files[0]) handleFile(e.target.files[0]);
+  });
+
+  ['dragover','dragenter'].forEach(evt=>{
+    emptyState.addEventListener(evt, (e)=>{ e.preventDefault(); emptyState.classList.add('drag'); });
+  });
+  ['dragleave','drop'].forEach(evt=>{
+    emptyState.addEventListener(evt, (e)=>{ e.preventDefault(); emptyState.classList.remove('drag'); });
+  });
+  emptyState.addEventListener('drop', (e)=>{
+    if(e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+
+  function handleFile(file){
+    fileStatus.textContent = 'Reading ' + file.name + '…';
+    const reader = new FileReader();
+    reader.onload = function(ev){
+      try{
+        const data = new Uint8Array(ev.target.result);
+        const wb = XLSX.read(data, {type:'array', cellDates:true});
+        const sheetName = wb.SheetNames[0];
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {defval:null});
+        ingest(rows, file.name);
+      }catch(err){
+        fileStatus.textContent = 'Could not read file: ' + err.message;
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function parseRows(rows){
+    const cleaned = [];
+    for(const r of rows){
+      const dateVal = r.date instanceof Date ? r.date : (r.date ? new Date(r.date) : null);
+      if(!dateVal || isNaN(dateVal)) continue;
+      cleaned.push({
+        distributor: r.distributor || 'Unknown',
+        subArea: r.sub_area || 'Unknown',
+        salesman: r.salesman || 'Unknown',
+        abs: r.ABS || 'Unknown',
+        subBrand: r.sub_brand || 'Unknown',
+        customer_no: r.customer_no != null ? String(r.customer_no) : (r.customer_name || ''),
+        quantity: Number(r.quantity) || 0,
+        sales: Number(r.sales_amount) || 0,
+        date: dateVal,
+        week: r.week || '',
+        month: r.month || '',
+        year: r.year || dateVal.getFullYear()
+      });
+    }
+    return cleaned;
+  }
+
+  function applyData(cleaned, label){
+    RAW = cleaned;
+    if(RAW.length === 0){
+      fileStatus.textContent = label || 'No data found.';
+      return;
+    }
+    buildOptionLists();
+    initFilterDefaults();
+    renderFilterUI();
+    if(label) fileStatus.innerHTML = label;
+    emptyState.style.display = 'none';
+    dash.style.display = 'block';
+    update();
+  }
+
+  async function ingest(rows, fileName){
+    const cleaned = parseRows(rows);
+    if(cleaned.length === 0){
+      fileStatus.textContent = 'No valid rows found in ' + fileName;
+      return;
+    }
+    if(sb){
+      fileStatus.textContent = 'Saving ' + fmtInt.format(cleaned.length) + ' rows to database…';
+      try{
+        await syncToSupabase(cleaned);
+        await loadFromSupabase('Loaded from database after uploading <b>' + escapeHtml(fileName) + '</b>');
+      }catch(err){
+        applyData(cleaned, 'Loaded <b>' + fmtInt.format(cleaned.length) + '</b> rows from <b>' + escapeHtml(fileName) + '</b> — database sync failed: ' + escapeHtml(err.message));
+      }
+    } else {
+      applyData(cleaned, 'Loaded <b>' + fmtInt.format(cleaned.length) + '</b> rows from <b>' + escapeHtml(fileName) + '</b>');
+    }
+  }
+
+  // ---------------- option building ----------------
+  function buildOptionLists(){
+    optionLists.subBrand = [...new Set(RAW.map(r=>r.subBrand))].sort();
+    optionLists.abs = [...new Set(RAW.map(r=>r.abs))].sort();
+    optionLists.subArea = [...new Set(RAW.map(r=>r.subArea))].sort();
+    optionLists.distributor = [...new Set(RAW.map(r=>r.distributor))].sort();
+  }
+
+  function distributorOptionsForCurrentSubArea(){
+    if(filters.subArea.size === 0) return optionLists.distributor;
+    const set = new Set();
+    RAW.forEach(r=>{ if(filters.subArea.has(r.subArea)) set.add(r.distributor); });
+    return [...set].sort();
+  }
+
+  function initFilterDefaults(){
+    filters.subBrand = new Set();
+    filters.abs = new Set();
+    filters.subArea = new Set();
+    filters.distributor = new Set();
+    let minTime = Infinity, maxTime = -Infinity;
+    for(const r of RAW){
+      const t = r.date.getTime();
+      if(t < minTime) minTime = t;
+      if(t > maxTime) maxTime = t;
+    }
+    filters.dateStart = new Date(minTime);
+    filters.dateEnd = new Date(maxTime);
+    document.getElementById('dateStart').value = toISODate(filters.dateStart);
+    document.getElementById('dateEnd').value = toISODate(filters.dateEnd);
+  }
+
+  function toISODate(d){ return d.toISOString().slice(0,10); }
+
+  // ---------------- multi-select component ----------------
+  function renderFilterUI(){
+    buildMultiSelect('msel-subbrand', 'subBrand', optionLists.subBrand, false);
+    buildMultiSelect('msel-abs', 'abs', optionLists.abs, false);
+    buildMultiSelect('msel-subarea', 'subArea', optionLists.subArea, true);
+    buildMultiSelect('msel-distributor', 'distributor', distributorOptionsForCurrentSubArea(), false);
+  }
+
+  function buildMultiSelect(containerId, filterKey, options, isSubArea){
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    const btn = document.createElement('button');
+    btn.className = 'msel-btn';
+    btn.type = 'button';
+    const label = document.createElement('span');
+    label.className = 'msel-label';
+    const chev = document.createElement('span');
+    chev.className = 'chev'; chev.textContent = '▾';
+    btn.appendChild(label); btn.appendChild(chev);
+
+    const panel = document.createElement('div');
+    panel.className = 'msel-panel';
+    panel.addEventListener('click', (e)=> e.stopPropagation());
+
+    const search = document.createElement('input');
+    search.className = 'msel-search';
+    search.placeholder = 'Search...';
+    panel.appendChild(search);
+
+    const actions = document.createElement('div');
+    actions.className = 'msel-actions';
+    const allA = document.createElement('a'); allA.textContent = 'Select all';
+    const noneA = document.createElement('a'); noneA.textContent = 'Clear';
+    actions.appendChild(allA); actions.appendChild(noneA);
+    panel.appendChild(actions);
+
+    const listWrap = document.createElement('div');
+    panel.appendChild(listWrap);
+
+    function renderList(filterText){
+      listWrap.innerHTML = '';
+      options.filter(o => o.toLowerCase().includes((filterText||'').toLowerCase())).forEach(opt=>{
+        const row = document.createElement('label');
+        row.className = 'msel-opt';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = filters[filterKey].has(opt);
+        cb.addEventListener('change', ()=>{
+          if(cb.checked) filters[filterKey].add(opt); else filters[filterKey].delete(opt);
+          if(isSubArea){
+            filters.distributor = new Set();
+            const distOptions = distributorOptionsForCurrentSubArea();
+            buildMultiSelect('msel-distributor', 'distributor', distOptions, false);
+          }
+          updateLabel();
+          update();
+        });
+        const txt = document.createElement('span'); txt.textContent = opt;
+        row.appendChild(cb); row.appendChild(txt);
+        listWrap.appendChild(row);
+      });
+    }
+    renderList('');
+    search.addEventListener('input', ()=>renderList(search.value));
+
+    allA.addEventListener('click', ()=>{
+      options.forEach(o=>filters[filterKey].add(o));
+      if(isSubArea){ filters.distributor = new Set(); buildMultiSelect('msel-distributor','distributor', distributorOptionsForCurrentSubArea(), false); }
+      renderList(search.value); updateLabel(); update();
+    });
+    noneA.addEventListener('click', ()=>{
+      filters[filterKey].clear();
+      if(isSubArea){ filters.distributor = new Set(); buildMultiSelect('msel-distributor','distributor', distributorOptionsForCurrentSubArea(), false); }
+      renderList(search.value); updateLabel(); update();
+    });
+
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      document.querySelectorAll('.msel-panel.open').forEach(p=>{ if(p!==panel) p.classList.remove('open'); });
+      panel.classList.toggle('open');
+    });
+
+    function updateLabel(){
+      const n = filters[filterKey].size;
+      label.textContent = n === 0 ? 'All' : (n + ' selected');
+    }
+    updateLabel();
+
+    container.appendChild(btn);
+    container.appendChild(panel);
+  }
+
+  document.addEventListener('click', ()=>{
+    document.querySelectorAll('.msel-panel.open').forEach(p=>p.classList.remove('open'));
+  });
+
+  // ---------------- date + granularity ----------------
+  document.getElementById('dateStart').addEventListener('change', (e)=>{
+    filters.dateStart = new Date(e.target.value); update();
+  });
+  document.getElementById('dateEnd').addEventListener('change', (e)=>{
+    filters.dateEnd = new Date(e.target.value); update();
+  });
+  document.getElementById('granToggle').addEventListener('click', (e)=>{
+    const b = e.target.closest('button'); if(!b) return;
+    document.querySelectorAll('#granToggle button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    filters.granularity = b.dataset.g;
+    document.querySelector('#trendTitle span').textContent = '— ' + filters.granularity;
+    update();
+  });
+  document.getElementById('resetBtn').addEventListener('click', ()=>{
+    initFilterDefaults();
+    renderFilterUI();
+    update();
+  });
+  document.getElementById('searchBox').addEventListener('input', (e)=>{
+    searchTerm = e.target.value.toLowerCase();
+    update(true);
+  });
+  document.getElementById('uploadLabel').addEventListener('click', ()=>{});
+
+  // ---------------- filtering ----------------
+  function getFiltered(){
+    const start = filters.dateStart ? filters.dateStart.getTime() : -Infinity;
+    const end = filters.dateEnd ? filters.dateEnd.getTime() + 86399999 : Infinity;
+    return RAW.filter(r=>{
+      const t = r.date.getTime();
+      if(t < start || t > end) return false;
+      if(filters.subBrand.size && !filters.subBrand.has(r.subBrand)) return false;
+      if(filters.abs.size && !filters.abs.has(r.abs)) return false;
+      if(filters.subArea.size && !filters.subArea.has(r.subArea)) return false;
+      if(filters.distributor.size && !filters.distributor.has(r.distributor)) return false;
+      return true;
+    });
+  }
+
+  // ---------------- aggregation ----------------
+  function aggregateKPIs(rows){
+    let qty=0, sales=0;
+    const outlets = new Set(), salesmen = new Set();
+    rows.forEach(r=>{
+      qty += r.quantity; sales += r.sales;
+      salesmen.add(r.salesman);
+      if(r.quantity > 0) outlets.add(r.customer_no);
+    });
+    return {qty, sales, outlets: outlets.size, salesmen: salesmen.size};
+  }
+
+  function aggregateSalesman(rows){
+    const map = new Map();
+    rows.forEach(r=>{
+      if(!map.has(r.salesman)){
+        map.set(r.salesman, {salesman:r.salesman, abs:r.abs, distributor:r.distributor, subArea:r.subArea, qty:0, sales:0, outlets:new Set()});
+      }
+      const e = map.get(r.salesman);
+      e.qty += r.quantity;
+      e.sales += r.sales;
+      if(r.quantity > 0) e.outlets.add(r.customer_no);
+    });
+    return [...map.values()].map(e=>({
+      ...e, outlets: e.outlets.size,
+      avgPerOutlet: e.outlets.size ? e.sales / e.outlets.size : 0
+    }));
+  }
+
+  function aggregateTrend(rows, granularity){
+    const map = new Map();
+    rows.forEach(r=>{
+      let key;
+      if(granularity === 'daily') key = r.date.toISOString().slice(0,10);
+      else if(granularity === 'weekly') key = r.year + '|' + r.week;
+      else key = r.year + '|' + r.month;
+      if(!map.has(key)) map.set(key, {key, qty:0, sales:0, minDate:r.date});
+      const e = map.get(key);
+      e.qty += r.quantity; e.sales += r.sales;
+      if(r.date < e.minDate) e.minDate = r.date;
+    });
+    const arr = [...map.values()];
+    arr.sort((a,b)=>a.minDate - b.minDate);
+    arr.forEach(e=>{
+      if(granularity === 'daily') e.label = e.minDate.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+      else if(granularity === 'weekly') e.label = e.key.split('|')[1];
+      else e.label = e.minDate.toLocaleDateString('en-US',{month:'short',year:'numeric'});
+    });
+    return arr;
+  }
+
+  // ---------------- render ----------------
+  function update(skipCharts){
+    const filtered = getFiltered();
+    const k = aggregateKPIs(filtered);
+
+    document.getElementById('kpiQty').textContent = fmtInt.format(k.qty);
+    document.getElementById('kpiQtySub').textContent = fmtInt.format(filtered.length) + ' transactions';
+    document.getElementById('kpiSales').textContent = fmtIDR(k.sales);
+    document.getElementById('kpiSalesSub').textContent = k.qty ? 'Avg ' + fmtIDR(k.sales / Math.max(k.qty,1)) + ' / unit' : '';
+    document.getElementById('kpiOutlets').textContent = fmtInt.format(k.outlets);
+    document.getElementById('kpiOutletsSub').textContent = 'distinct customers, qty > 0';
+    document.getElementById('kpiSalesmen').textContent = fmtInt.format(k.salesmen);
+    document.getElementById('kpiSalesmenSub').textContent = k.salesmen ? fmtIDR(k.sales / k.salesmen) + ' avg / salesman' : '';
+
+    let salesmanRows = aggregateSalesman(filtered);
+    if(searchTerm){
+      salesmanRows = salesmanRows.filter(r => r.salesman.toLowerCase().includes(searchTerm));
+    }
+    sortRows(salesmanRows);
+    renderTable(salesmanRows);
+
+    if(!skipCharts){
+      renderTrendChart(aggregateTrend(filtered, filters.granularity));
+      renderTopChart([...salesmanRows].sort((a,b)=>b.qty-a.qty).slice(0,10));
+    }
+  }
+
+  function sortRows(rows){
+    const {key, dir} = sortState;
+    rows.sort((a,b)=>{
+      let va = a[key], vb = b[key];
+      if(typeof va === 'string'){ va = va.toLowerCase(); vb = vb.toLowerCase(); }
+      if(va < vb) return dir === 'asc' ? -1 : 1;
+      if(va > vb) return dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
+  document.querySelectorAll('thead th[data-key]').forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const key = th.dataset.key;
+      if(sortState.key === key) sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+      else { sortState.key = key; sortState.dir = 'desc'; }
+      document.querySelectorAll('thead th .arrow').forEach(a=>a.textContent='');
+      th.querySelector('.arrow').textContent = sortState.dir === 'asc' ? '▲' : '▼';
+      update(true);
+    });
+  });
+
+  function renderTable(rows){
+    const tbody = document.getElementById('tblBody');
+    tbody.innerHTML = '';
+    if(rows.length === 0){
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="9">No salesmen match the current filters.</td></tr>';
+      return;
+    }
+    rows.forEach((r, i)=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td class="rank">' + (i+1) + '</td>' +
+        '<td class="sname">' + escapeHtml(r.salesman) + '</td>' +
+        '<td class="meta">' + escapeHtml(r.abs) + '</td>' +
+        '<td class="meta">' + escapeHtml(r.distributor) + '</td>' +
+        '<td class="meta">' + escapeHtml(r.subArea) + '</td>' +
+        '<td class="num-col">' + fmtInt.format(r.qty) + '</td>' +
+        '<td class="num-col">' + fmtIDR(r.sales) + '</td>' +
+        '<td class="num-col">' + fmtInt.format(r.outlets) + '</td>' +
+        '<td class="num-col">' + fmtIDR(r.avgPerOutlet) + '</td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function renderTrendChart(data){
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    const labels = data.map(d=>d.label);
+    const values = data.map(d=>d.sales);
+    if(trendChart) trendChart.destroy();
+    trendChart = new Chart(ctx, {
+      type:'line',
+      data:{ labels, datasets:[{
+        label:'Sales Value', data: values,
+        borderColor:'#cf8a3f', backgroundColor:'rgba(207,138,63,0.12)',
+        borderWidth:2, tension:0.3, fill:true, pointRadius:3, pointBackgroundColor:'#cf8a3f'
+      }]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false},
+          tooltip:{ callbacks:{ label: (c)=> fmtIDR(c.parsed.y) } } },
+        scales:{
+          x:{ grid:{color:'#242a33'}, ticks:{color:'#8e97a3', font:{size:11}} },
+          y:{ grid:{color:'#242a33'}, ticks:{color:'#8e97a3', font:{size:11},
+                callback:(v)=> (v>=1e6? (v/1e6).toFixed(1)+'M' : v>=1e3? (v/1e3).toFixed(0)+'K' : v) } }
+        }
+      }
+    });
+  }
+
+  const barValueLabels = {
+    id: 'barValueLabels',
+    afterDatasetsDraw(chart){
+      const {ctx} = chart;
+      chart.data.datasets.forEach((dataset, i)=>{
+        chart.getDatasetMeta(i).data.forEach((bar, idx)=>{
+          ctx.save();
+          ctx.fillStyle = '#eceff2';
+          ctx.font = "600 11px 'Inter', system-ui, sans-serif";
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(fmtInt.format(dataset.data[idx]), bar.x + 6, bar.y);
+          ctx.restore();
+        });
+      });
+    }
+  };
+
+  function renderTopChart(rows){
+    const ctx = document.getElementById('topChart').getContext('2d');
+    const labels = rows.map(r=>r.salesman);
+    const values = rows.map(r=>r.qty);
+    const maxVal = values.length ? Math.max(...values) : 0;
+    if(topChart) topChart.destroy();
+    topChart = new Chart(ctx, {
+      type:'bar',
+      plugins:[barValueLabels],
+      data:{ labels, datasets:[{
+        label:'Quantity', data: values,
+        backgroundColor:'#2f9e8f', borderRadius:4, maxBarThickness:16
+      }]},
+      options:{
+        indexAxis:'y', responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false},
+          tooltip:{ callbacks:{ label: (c)=> fmtInt.format(c.parsed.x) } } },
+        scales:{
+          x:{ suggestedMax: maxVal * 1.18, grid:{color:'#242a33'}, ticks:{color:'#8e97a3', font:{size:10},
+                callback:(v)=> (v>=1e6? (v/1e6).toFixed(1)+'M' : v>=1e3? (v/1e3).toFixed(0)+'K' : v) } },
+          y:{ grid:{display:false}, ticks:{color:'#c9cfd6', font:{size:11}} }
+        }
+      }
+    });
+  }
+
+  // ---------------- export ----------------
+  document.getElementById('exportBtn').addEventListener('click', ()=>{
+    const filtered = getFiltered();
+    let rows = aggregateSalesman(filtered);
+    if(searchTerm) rows = rows.filter(r=>r.salesman.toLowerCase().includes(searchTerm));
+    sortRows(rows);
+    const header = ['Salesman','ABS','Distributor','Sub Area','Quantity','Sales Value','Active Outlets','Avg per Outlet'];
+    const lines = [header.join(',')];
+    rows.forEach(r=>{
+      lines.push([r.salesman, r.abs, r.distributor, r.subArea, r.qty, Math.round(r.sales), r.outlets, Math.round(r.avgPerOutlet)]
+        .map(v => typeof v === 'string' && v.includes(',') ? '"'+v+'"' : v).join(','));
+    });
+    const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'salesman_performance.csv';
+    a.click();
+  });
+
+  // ---------------- installable app ----------------
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', ()=>{
+      navigator.serviceWorker.register('sw.js').catch(()=>{});
+    });
+  }
+
+})();
+</script>
+</body>
+</html>
