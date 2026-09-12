@@ -76,6 +76,20 @@
   #emptyState h2{font-size:19px;margin:0 0 8px;}
   #emptyState p{color:var(--text-dim);max-width:440px;margin:0 auto 22px;font-size:13px;}
 
+  /* ---------- loading state ---------- */
+  #loadingState{
+    border:1.5px solid var(--border);border-radius:14px;
+    padding:80px 30px;text-align:center;margin-top:40px;background:var(--bg-soft);
+  }
+  #loadingState h2{font-size:19px;margin:0 0 8px;}
+  #loadingState p{color:var(--text-dim);max-width:440px;margin:0 auto;font-size:13px;}
+  .spinner{
+    width:30px;height:30px;margin:0 auto 20px;border-radius:50%;
+    border:3px solid var(--border);border-top-color:var(--accent);
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
   /* ---------- filter bar ---------- */
   #dash{display:none;}
   .filterbar{
@@ -220,6 +234,12 @@
       <input type="file" id="fileInput" accept=".xlsx,.xls">
     </div>
   </header>
+
+  <div id="loadingState" style="display:none;">
+    <div class="spinner"></div>
+    <h2>Loading your data…</h2>
+    <p>Checking the database for previously uploaded sales data.</p>
+  </div>
 
   <div id="emptyState">
     <h2>Upload your sales data to begin</h2>
@@ -391,8 +411,16 @@
     sb.auth.onAuthStateChange((event, session)=>{
       if(session){
         authOverlay.style.display = 'none';
-        loadFromSupabase().catch(err => fileStatus.textContent = 'Load failed: ' + err.message);
+        emptyState.style.display = 'none';
+        dash.style.display = 'none';
+        loadingState.style.display = 'block';
+        loadFromSupabase().catch(err => {
+          loadingState.style.display = 'none';
+          emptyState.style.display = 'block';
+          fileStatus.textContent = 'Load failed: ' + err.message;
+        });
       } else {
+        loadingState.style.display = 'none';
         authOverlay.style.display = 'flex';
         dash.style.display = 'none';
         emptyState.style.display = 'none';
@@ -457,6 +485,7 @@
   // ---------------- file handling ----------------
   const fileInput = document.getElementById('fileInput');
   const emptyState = document.getElementById('emptyState');
+  const loadingState = document.getElementById('loadingState');
   const dash = document.getElementById('dash');
   const fileStatus = document.getElementById('fileStatus');
 
@@ -516,8 +545,11 @@
 
   function applyData(cleaned, label){
     RAW = cleaned;
+    loadingState.style.display = 'none';
     if(RAW.length === 0){
-      fileStatus.textContent = label || 'No data found.';
+      if(label) fileStatus.textContent = label;
+      dash.style.display = 'none';
+      emptyState.style.display = 'block';
       return;
     }
     buildOptionLists();
