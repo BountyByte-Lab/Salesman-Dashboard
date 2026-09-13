@@ -99,6 +99,7 @@
   }
   .filter-field{display:flex;flex-direction:column;gap:5px;min-width:150px;}
   .filter-field label{font-size:11px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+  .filter-hint{font-size:10.5px;color:var(--text-faint);max-width:230px;line-height:1.35;}
   .msel{position:relative;}
   .msel-btn{
     width:100%;text-align:left;background:var(--panel-2);border:1px solid var(--border);
@@ -160,6 +161,10 @@
 
   /* ---------- table ---------- */
   .table-panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;}
+  .pagination{display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12.5px;color:var(--text-dim);}
+  .page-btns{display:flex;gap:8px;}
+  .page-btns .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .page-btns .btn:disabled:hover{border-color:var(--border);}
   .table-head-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap;}
   .search-box{
     background:var(--panel-2);border:1px solid var(--border);color:var(--text);
@@ -256,6 +261,7 @@
           <input type="date" id="dateStart">
           <input type="date" id="dateEnd">
         </div>
+        <div class="filter-hint">Reflects actual transaction dates — a month's first fiscal week can start a few days into the prior calendar month.</div>
       </div>
 
       <div class="filter-field">
@@ -350,6 +356,13 @@
           </thead>
           <tbody id="tblBody"></tbody>
         </table>
+      </div>
+      <div class="pagination">
+        <span id="pageInfo"></span>
+        <div class="page-btns">
+          <button class="btn btn-sm" id="prevPageBtn">Prev</button>
+          <button class="btn btn-sm" id="nextPageBtn">Next</button>
+        </div>
       </div>
     </div>
 
@@ -850,7 +863,9 @@
       salesmanRows = salesmanRows.filter(r => r.salesman.toLowerCase().includes(searchTerm));
     }
     sortRows(salesmanRows);
-    renderTable(salesmanRows);
+    lastSalesmanRows = salesmanRows;
+    currentPage = 1;
+    renderTablePage();
 
     if(!skipCharts){
       renderTrendChart(aggregateTrend(filtered, filters.granularity));
@@ -880,7 +895,36 @@
     });
   });
 
-  function renderTable(rows){
+  let lastSalesmanRows = [];
+  let currentPage = 1;
+  const PAGE_SIZE = 10;
+
+  function renderTablePage(){
+    const total = lastSalesmanRows.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    if(currentPage > totalPages) currentPage = totalPages;
+    if(currentPage < 1) currentPage = 1;
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageRows = lastSalesmanRows.slice(start, start + PAGE_SIZE);
+    renderTable(pageRows, start);
+
+    document.getElementById('pageInfo').textContent = total
+      ? ('Showing ' + fmtInt.format(start + 1) + '–' + fmtInt.format(Math.min(start + PAGE_SIZE, total)) + ' of ' + fmtInt.format(total))
+      : 'No results';
+    document.getElementById('prevPageBtn').disabled = currentPage <= 1;
+    document.getElementById('nextPageBtn').disabled = currentPage >= totalPages;
+  }
+
+  document.getElementById('prevPageBtn').addEventListener('click', ()=>{
+    if(currentPage > 1){ currentPage--; renderTablePage(); }
+  });
+  document.getElementById('nextPageBtn').addEventListener('click', ()=>{
+    const totalPages = Math.max(1, Math.ceil(lastSalesmanRows.length / PAGE_SIZE));
+    if(currentPage < totalPages){ currentPage++; renderTablePage(); }
+  });
+
+  function renderTable(rows, rankOffset){
+    rankOffset = rankOffset || 0;
     const tbody = document.getElementById('tblBody');
     tbody.innerHTML = '';
     if(rows.length === 0){
@@ -890,7 +934,7 @@
     rows.forEach((r, i)=>{
       const tr = document.createElement('tr');
       tr.innerHTML =
-        '<td class="rank">' + (i+1) + '</td>' +
+        '<td class="rank">' + (rankOffset + i + 1) + '</td>' +
         '<td class="sname">' + escapeHtml(r.salesman) + '</td>' +
         '<td class="meta">' + escapeHtml(r.abs) + '</td>' +
         '<td class="meta">' + escapeHtml(r.distributor) + '</td>' +
