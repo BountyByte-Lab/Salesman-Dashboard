@@ -512,7 +512,7 @@
         const wb = XLSX.read(data, {type:'array', cellDates:true});
         const sheetName = wb.SheetNames[0];
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {defval:null});
-        ingest(rows, file.name);
+        ingest(rows, file.name, file.size);
       }catch(err){
         fileStatus.textContent = 'Could not read file: ' + err.message;
       }
@@ -561,10 +561,14 @@
     update();
   }
 
-  async function ingest(rows, fileName){
+  async function ingest(rows, fileName, fileSize){
     const cleaned = parseRows(rows);
     if(cleaned.length === 0){
-      fileStatus.textContent = 'No valid rows found in ' + fileName;
+      if(rows.length === 0 && fileSize > 35 * 1024 * 1024){
+        fileStatus.textContent = 'Could not read any rows from ' + fileName + ' (' + (fileSize/1024/1024).toFixed(0) + 'MB) — this file is likely too large for the browser to parse in one go. Try splitting it into smaller files (e.g. a few months at a time, or one month per file) and uploading each separately — they will all accumulate in the database.';
+      } else {
+        fileStatus.textContent = 'No valid rows found in ' + fileName;
+      }
       return;
     }
     if(sb){
