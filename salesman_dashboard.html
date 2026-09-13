@@ -99,7 +99,20 @@
   }
   .filter-field{display:flex;flex-direction:column;gap:5px;min-width:150px;}
   .filter-field label{font-size:11px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
-  .filter-hint{font-size:10.5px;color:var(--text-faint);max-width:230px;line-height:1.35;}
+  .label-row{position:relative;display:flex;align-items:center;gap:5px;}
+  .info-btn{
+    appearance:none;border:1px solid var(--border);background:var(--panel-2);color:var(--text-dim);
+    width:16px;height:16px;border-radius:50%;font-size:10px;line-height:1;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;padding:0;font-family:inherit;
+  }
+  .info-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .info-popover{
+    display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:50;
+    background:var(--panel-2);border:1px solid var(--border);border-radius:8px;
+    width:260px;padding:10px 12px;font-size:11.5px;color:var(--text-dim);line-height:1.5;
+    box-shadow:0 12px 28px rgba(0,0,0,.45);
+  }
+  .info-popover.open{display:block;}
   .msel{position:relative;}
   .msel-btn{
     width:100%;text-align:left;background:var(--panel-2);border:1px solid var(--border);
@@ -256,12 +269,19 @@
 
     <div class="filterbar">
       <div class="filter-field">
-        <label>Period</label>
+        <div class="label-row">
+          <label>Period</label>
+          <button type="button" class="info-btn" id="periodInfoBtn" aria-label="About this date range">ⓘ</button>
+          <div class="info-popover" id="periodInfoPopover">
+            This range reflects actual transaction dates, not fiscal week labels — a period's first fiscal week can start a few days into the prior calendar month (e.g. "Week 23 / June" begins Sunday, 31 May).
+            <br><br>
+            The <b>Weekly</b> trend view only shows week labels like "WK 23", so a specific date like 31 May won't appear there. Switch <b>Trend Granularity</b> to <b>Daily</b> to see individual calendar dates.
+          </div>
+        </div>
         <div class="date-field" style="display:flex;gap:6px;">
           <input type="date" id="dateStart">
           <input type="date" id="dateEnd">
         </div>
-        <div class="filter-hint">Reflects actual transaction dates — a month's first fiscal week can start a few days into the prior calendar month.</div>
       </div>
 
       <div class="filter-field">
@@ -734,6 +754,17 @@
 
   document.addEventListener('click', ()=>{
     document.querySelectorAll('.msel-panel.open').forEach(p=>p.classList.remove('open'));
+    periodInfoPopover.classList.remove('open');
+  });
+
+  // ---------------- period info popover ----------------
+  const periodInfoBtn = document.getElementById('periodInfoBtn');
+  const periodInfoPopover = document.getElementById('periodInfoPopover');
+  periodInfoPopover.addEventListener('click', (e)=> e.stopPropagation());
+  periodInfoBtn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    document.querySelectorAll('.msel-panel.open').forEach(p=>p.classList.remove('open'));
+    periodInfoPopover.classList.toggle('open');
   });
 
   // ---------------- date + granularity ----------------
