@@ -408,9 +408,17 @@
       if(error) authError.textContent = error.message;
     });
 
+    let loadedForUserId = null;
+
     sb.auth.onAuthStateChange((event, session)=>{
       if(session){
         authOverlay.style.display = 'none';
+        if(loadedForUserId === session.user.id){
+          // Supabase re-fires this on tab focus / token refresh even when nothing
+          // changed — only do the full reload for an actual new sign-in.
+          return;
+        }
+        loadedForUserId = session.user.id;
         emptyState.style.display = 'none';
         dash.style.display = 'none';
         loadingState.style.display = 'block';
@@ -420,6 +428,7 @@
           fileStatus.textContent = 'Load failed: ' + err.message;
         });
       } else {
+        loadedForUserId = null;
         loadingState.style.display = 'none';
         authOverlay.style.display = 'flex';
         dash.style.display = 'none';
