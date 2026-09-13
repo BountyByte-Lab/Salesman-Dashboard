@@ -517,7 +517,7 @@
       salesman: r.salesman || 'Unknown', abs: r.abs || 'Unknown', subBrand: r.sub_brand || 'Unknown',
       customer_no: r.customer_no || '', quantity: Number(r.quantity) || 0, sales: Number(r.sales_amount) || 0,
       date: new Date(r.date), week: r.week || '', month: r.month || '',
-      year: r.year || new Date(r.date).getFullYear()
+      year: r.year || new Date(r.date).getUTCFullYear()
     }));
     applyData(cleaned, cleaned.length
       ? (label || 'Loaded <b>' + fmtInt.format(cleaned.length) + '</b> rows from database')
@@ -551,7 +551,12 @@
     reader.onload = function(ev){
       try{
         const data = new Uint8Array(ev.target.result);
-        const wb = XLSX.read(data, {type:'array', cellDates:true});
+        // Deliberately NOT using {cellDates:true}: SheetJS's date-cell-to-JS-Date
+        // conversion is sensitive to the local system timezone and silently shifts
+        // dates by a day for timezones ahead of UTC (confirmed for Asia/Jakarta,
+        // UTC+7). Reading raw numeric serials and converting them ourselves with
+        // pure UTC arithmetic (see excelSerialToUTCDate) is timezone-safe.
+        const wb = XLSX.read(data, {type:'array'});
         const sheetName = wb.SheetNames[0];
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {defval:null});
         ingest(rows, file.name, file.size);
@@ -562,10 +567,18 @@
     reader.readAsArrayBuffer(file);
   }
 
+  function excelSerialToUTCDate(serial){
+    const utcDays = Math.floor(serial - 25569);
+    return new Date(utcDays * 86400 * 1000);
+  }
+
   function parseRows(rows){
     const cleaned = [];
     for(const r of rows){
-      const dateVal = r.date instanceof Date ? r.date : (r.date ? new Date(r.date) : null);
+      let dateVal = null;
+      if(typeof r.date === 'number') dateVal = excelSerialToUTCDate(r.date);
+      else if(r.date instanceof Date) dateVal = r.date;
+      else if(r.date) dateVal = new Date(r.date);
       if(!dateVal || isNaN(dateVal)) continue;
       cleaned.push({
         distributor: r.distributor || 'Unknown',
@@ -579,7 +592,7 @@
         date: dateVal,
         week: r.week || '',
         month: r.month || '',
-        year: r.year || dateVal.getFullYear()
+        year: r.year || dateVal.getUTCFullYear()
       });
     }
     return cleaned;
@@ -868,9 +881,9 @@
     const arr = [...map.values()];
     arr.sort((a,b)=>a.minDate - b.minDate);
     arr.forEach(e=>{
-      if(granularity === 'daily') e.label = e.minDate.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+      if(granularity === 'daily') e.label = e.minDate.toLocaleDateString('en-GB',{day:'2-digit',month:'short',timeZone:'UTC'});
       else if(granularity === 'weekly') e.label = e.key.split('|')[1];
-      else e.label = e.minDate.toLocaleDateString('en-US',{month:'short',year:'numeric'});
+      else e.label = e.minDate.toLocaleDateString('en-US',{month:'short',year:'numeric',timeZone:'UTC'});
     });
     return arr;
   }
