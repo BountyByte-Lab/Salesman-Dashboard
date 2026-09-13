@@ -353,7 +353,7 @@
       </div>
     </div>
 
-    <footer>Active outlet = distinct customer with at least one positive-quantity transaction in the selected period. Data reflects the currently uploaded file only — re-upload to refresh.</footer>
+    <footer>Active outlet = distinct distributor + sub area + customer combination with total quantity greater than 0 in the selected period. Data reflects the currently uploaded file only — re-upload to refresh.</footer>
   </div>
 </div>
 
@@ -752,32 +752,48 @@
   }
 
   // ---------------- aggregation ----------------
+  function outletKey(r){
+    return r.distributor + '|' + r.subArea + '|' + r.customer_no;
+  }
+
+  function countActiveOutlets(outletTotals){
+    let count = 0;
+    outletTotals.forEach(v => { if(v > 0) count++; });
+    return count;
+  }
+
   function aggregateKPIs(rows){
     let qty=0, sales=0;
-    const outlets = new Set(), salesmen = new Set();
+    const outletTotals = new Map(), salesmen = new Set();
     rows.forEach(r=>{
       qty += r.quantity; sales += r.sales;
       salesmen.add(r.salesman);
-      if(r.quantity > 0) outlets.add(r.customer_no);
+      const key = outletKey(r);
+      outletTotals.set(key, (outletTotals.get(key) || 0) + r.quantity);
     });
-    return {qty, sales, outlets: outlets.size, salesmen: salesmen.size};
+    return {qty, sales, outlets: countActiveOutlets(outletTotals), salesmen: salesmen.size};
   }
 
   function aggregateSalesman(rows){
     const map = new Map();
     rows.forEach(r=>{
       if(!map.has(r.salesman)){
-        map.set(r.salesman, {salesman:r.salesman, abs:r.abs, distributor:r.distributor, subArea:r.subArea, qty:0, sales:0, outlets:new Set()});
+        map.set(r.salesman, {salesman:r.salesman, abs:r.abs, distributor:r.distributor, subArea:r.subArea, qty:0, sales:0, outletTotals:new Map()});
       }
       const e = map.get(r.salesman);
       e.qty += r.quantity;
       e.sales += r.sales;
-      if(r.quantity > 0) e.outlets.add(r.customer_no);
+      const key = outletKey(r);
+      e.outletTotals.set(key, (e.outletTotals.get(key) || 0) + r.quantity);
     });
-    return [...map.values()].map(e=>({
-      ...e, outlets: e.outlets.size,
-      avgPerOutlet: e.outlets.size ? e.sales / e.outlets.size : 0
-    }));
+    return [...map.values()].map(e=>{
+      const outlets = countActiveOutlets(e.outletTotals);
+      return {
+        salesman: e.salesman, abs: e.abs, distributor: e.distributor, subArea: e.subArea,
+        qty: e.qty, sales: e.sales, outlets,
+        avgPerOutlet: outlets ? e.sales / outlets : 0
+      };
+    });
   }
 
   function aggregateTrend(rows, granularity){
@@ -812,7 +828,7 @@
     document.getElementById('kpiSales').textContent = fmtIDR(k.sales);
     document.getElementById('kpiSalesSub').textContent = k.qty ? 'Avg ' + fmtIDR(k.sales / Math.max(k.qty,1)) + ' / unit' : '';
     document.getElementById('kpiOutlets').textContent = fmtInt.format(k.outlets);
-    document.getElementById('kpiOutletsSub').textContent = 'distinct customers, qty > 0';
+    document.getElementById('kpiOutletsSub').textContent = 'distributor + sub area + customer, net qty > 0';
     document.getElementById('kpiSalesmen').textContent = fmtInt.format(k.salesmen);
     document.getElementById('kpiSalesmenSub').textContent = k.salesmen ? fmtIDR(k.sales / k.salesmen) + ' avg / salesman' : '';
 

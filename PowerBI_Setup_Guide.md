@@ -20,11 +20,19 @@ Mark it as a Date Table (Modeling → Mark as Date Table), then relate `DateTabl
 ```
 Total Quantity      = SUM(Sales[quantity])
 Total Sales Value   = SUM(Sales[sales_amount])
-Active Outlets      = CALCULATE(DISTINCTCOUNT(Sales[customer_no]), Sales[quantity] > 0)
 Active Salesmen     = DISTINCTCOUNT(Sales[salesman])
 Avg Sales / Outlet  = DIVIDE([Total Sales Value], [Active Outlets])
 Avg Sales / Salesman= DIVIDE([Total Sales Value], [Active Salesmen])
+
+Active Outlets =
+COUNTROWS(
+  FILTER(
+    SUMMARIZE(Sales, Sales[distributor], Sales[sub_area], Sales[customer_no], "TotalQty", SUM(Sales[quantity])),
+    [TotalQty] > 0
+  )
+)
 ```
+`Active Outlets` counts distinct (distributor, sub area, customer) combinations whose **summed** quantity over the filtered period is greater than 0 — not a simple `DISTINCTCOUNT` of customers with any single positive-quantity row, since the same customer number can recur under different distributors/sub areas.
 
 ## 4. Slicers (filters)
 Add slicer visuals for:
